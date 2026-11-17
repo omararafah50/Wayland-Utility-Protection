@@ -1,0 +1,130 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{Process-independent secret sharing: Division via IPC}
+\author{Omar Arafah}
+\date{August 2026}
+
+\usepackage{hyperref}
+\usepackage{float}
+
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+\section{Introduction}
+
+\subsection{Complications with Centralized-Process Memory}
+Contemporary companies holding cryptographic data in a \textit{Centralized Process Memory}, are in direct exposure to key extraction from exploiters in a process known as \textit{runtime memory extraction}, reading binaries and cryptographic data through the RAM stream. runtime memory extraction leads to violations of user privacy and exposes confidential data of transnational enterprises. According to Verizon Data Breach Investigations, during 2026, approximately 31\% of breaches result from exploiting system vulnerabilities. \cite{verizon2026dbir}
+\subsection{Architecture and Proposed Solution}
+Using key fragmentation and division across multiple processes, the proposed solution is simple: decentralize a process by preventing it from bearing all the key shares, using IPC, \textit{interprocess communication}. IPC provides the ability to send data from one computer program to another, which decouples different key shares. Though the option to use pipes in the IPC prioritizes bi-direction, uni-direction is usually the most secure as it prevents two way communication and ensures one stream of data flows into the other without coupling keys.
+\subsection{Paper structure}
+Section 2 will provide the foundations of SSS (Shamir's secret sharing) including Lagrange interpolation and finite fields. Section 3 will provide an overview of the Threat model and common assumptions regarding the architecture. Section 4 will cover the implementation of the proposed solution and architecture, covering zeroization and IPC pipe unidirectional communication between processes. Section 5 will evaluate the results from the architecture and provide details such as memory consumption, performance latency and memory overhead. Finally, Section 6 will conclude the findings and provide future work.
+
+\section{Foundations of SSS}
+\subsection{Concept behind SSS}
+Contemporary mathematics, especially high school algebra has facilitated the creation of algorithms in modern day cryptography. For instance, the algorithm used in this paper is known as SSS (Shamir's secret sharing). To properly demonstrate SSS it would be helpful to visualize a bank scenario. A manager generates a number, the secret (S), then, hands 10 employees N number of shares, in SSS, the number of shares is often conceptualized by x,y ordered pairs. Out of the N shares, the manager chooses 5 people, for instance, needed to unlock the bank vault, which is referred to as K. To construct the bank vault the manager generates a polynomial equation with a leading coefficient of degree K-1, with a total of K unknown coefficients. The manager generates random coefficients for the polynomial of degree 4, using the computer to generate 5 pseudorandom coefficients. The manager then constructs the equation with the 5 coefficients and uses the y-intercept (the constant, C) to bear the secret, S. Having done that, each N shares inputs the X values in the polynomial function to output a corresponding range or Y value. To maximize security, the manager is best recommended to generate a finite field by using modular arithmetic to wrap the polynomial equation by a modulus to set a range up to p-1, furthermore making the equation inaccessible to slope prediction algorithms. Finally, to prevent runtime memory extraction, the manager zeroizes the equation from the ram and memory, making the equation lost.
+
+\begin{equation}
+    \mathbb{Z}_p = \{0, 1, 2, \dots, p-1\}
+\end{equation}
+
+Note that a finite field is required for a substantial increase in secret security, for p, the range, it must be greater than the secret, S, generated and must be a prime number!
+
+\subsection{Polynomial reconstruction}
+Post zeroization, where the equation is lost forever, one of the methods to build back the equation is by gathering the key threshold $k = 5$ out of the total, $n$, shares, and performing lagrange interpolation to gain back coefficients and the secret. Lagrange interpolation is defined by the equation below:
+
+
+\begin{equation}
+    \ell_i(0) = \prod_{\substack{j=1 \\ j \neq i}}^{k} \frac{-x_j}{x_i - x_j} \pmod p
+\end{equation}
+
+Deeply analyzing lagrange interpolation requires understanding the application of lagrange interpolation. Usually, to obtain 5 unknown coefficients with 5 $x_j, y_j$ ordered pairs, dense simultaneous equations are involved, which demand a larger execution time and require more memory allocation. Using lagrange interpolation simplifies the process by involving weights which computes the relative scaling factor of the $x_j$ value in each share in comparison to others that are turned off. Equation (2) computes the weight of each $x_i$ value, relative to the remaining shares $x_j$, excluding the active index $x_i$. For example, assume for 3 keys $x_j$ each has the corresponding values: (1,2),(3,5),(4,6). To implement lagrange interpolation in the equation, we must find the weight for $x_1=1$, $x_2=3$, and so on \dots therefore the equation becomes: 
+
+\begin{equation}
+    \ell_1(0) = \frac{-3}{1 - 3} \cdot \frac{-4}{1 - 4}
+\end{equation}
+
+Please note that the above equation is equivalent to the one below, the difference comes from using the capital pi which is equivalent to multiplying the results together. After calculating the weight for the $x_1=1$ value, the same goes for others except you do not include $x_1=1$ in the calculation, you turn off $x_1=1$ and turn on the consecutive number in the list and turn off the remainder. Part of the process of comprehending lagrange interpolation is by acknowledging that equation (2) is a subset of equation (4)
+
+\begin{equation}
+    S = f(0) = \sum_{i=1}^{k} y_i \cdot \ell_i(0) \pmod p
+\end{equation}
+
+After calculating the weight for each $x_j$, assuming the weights of each $x_j$ value in the $3$ ordered pairs are: $5$, $4$ and $3$, respectively, for the list of ordered pairs (1,2), (3,5), (4,6). The equation above takes the corresponding weight of each $x_j$ value $\ell_i(0)$ and multiplies it by its corresponding $y_j$ value. After multiplying each $y_j$ value by its corresponding $x_j$ weight, the summation operator ($\sum$), known as \textit{Sigma}, takes the sum of each product and the result is the secret, $S$, or $f(0)$. The simplified equation below is a direct equivalent however with the exclusion of the summation notation.
+
+\begin{equation}
+    (y_1 \cdot \ell_1(0)) + (y_2 \cdot \ell_2(0)) + (y_3\cdot\ell_3(0))
+\end{equation}
+
+The operations inside the parentheses were done by the capital PI as demonstrated earlier whereas the operations outside the parentheses, the sum, is done by the sigma sign. Having repeated the process for all pairs in the table, the result is the secret, or $f(0)$.
+
+\subsection{Finite Fields in SSS}
+
+\begin{equation}
+    \mathbb{Z}_p = \{0, 1, \dots, p-1\}
+\end{equation}
+
+Finite fields play an integral role in protecting the secret by leveraging modular arithmetic. By limiting integers within a range of $\mathbb{Z}_p$, finite fields prevent the exploitation of slope prediction, thus decreasing risks of secret compromise. Finite fields set a limit for increasing/decreasing $x$ values by limiting their corresponding $y$ values up until $p-1$ where $p$ is a number greater than the secret, $f(0)$, and $n$ total shares and is also a prime number.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{image.png}
+    \caption{A parabola of second degree over $\mathbb{Z}_{11}$, where $y$ values cap at $p-1=10$.}
+    \label{fig:finite_field_parabola}
+\end{figure}
+
+As seen in Figure~\ref{fig:finite_field_parabola}, the parabola over finite field $\mathbb{Z}_{11}$ limits corresponding $y$ values of increasing / decreasing $x$ values by capping them up to $p-1$ before resetting $y$ values back to zero. Consequently, this proves how methods to extract the slope given $2$ keys / ordered pairs are deemed to be tenuous in predicting the secret, $f(0)$.
+
+\section{Threat model and assumption}
+\subsection{Adversary goals}
+During memory extraction attacks, attackers primarily look for the secret built at $S=f(0)$. By creating a core dump that takes a snapshot of the processes' RAM using gcore, an attacker can read out the secret, $S$, in plain text. However, if an alternate layer of security is added, the secret, $S$, may not be visible directly within the ram. Instead, cryptographic systems depending on an algorithm such as SSS on centralized process memory can provide the attacker with all $k$ distinct shares to reconstruct the secret, $S=f(0)$ using Lagrange interpolation, whereas an attacker attaining $k-1$ shares leads to a deficiency in total shares $k$ required to reconstruct the secret. An attacker utilizing memory extraction executes scripts under the same context as the processes' UID for direct access, bypassing root privileges for read access on this file \texttt{/proc/\$PID/mem} where PID is the process identification number.
+\subsection{Assumptions}
+\begin{itemize}
+    \item \textbf{Kernel Security: } Assuming the device holding $k$ shares across multiple processes is not infected with a Ring 0 rootkit, IPC data transfer remains under control. As a Ring 0 rootkit gives direct access over the kernel, leaving the system highly compromised and vulnerable. Systems exposed to Ring 0 rootkit malware lose control over programs that facilitate data transfer such as IPC, meaning the architecture fails in such a situation.
+    \item \textbf{Core dumps: } Although zeroization and memory wiping are integral processes in clearing the secret, $S$, the secret is still exposed during a minimal time frame as plain text sitting in central process memory. Prior to zeroization, an attacker utilizing asynchronous core / memory dumps may intercept $S$.
+    \item \textbf{Hardware attacks: } Direct hardware and physical attacks are out of scope when evaluating the proposed solution. Direct attacks are not accounted for as the solution fragments $k$ shares across multiple processes, accounting mainly for attempted mathematical and software compromise. However, hardware attacks such as cold boot attacks extract data from ram without requiring root privilege or core dumps, utilizing only tailgating or social engineering to execute such an attack which the proposed solution does not cover.
+\end{itemize}
+
+\section{Implementation of proposed solution}
+\subsection{Architecture}
+Effectively utilizing SSS and maximizing security requires fragmenting key shares $n$ across multiple processes which prevents runtime memory extraction. Key fragmentation is accomplished by communication between different processes through IPC (Interprocess Communication) pipes. Using pipes is considered advantageous in terms of speed prioritization and minimal memory allocation by utilizing uni-directional data flow, decreasing risks associated with data coupling which prove it to be of a better mechanism for cryptographic systems implementing key fragmentation. After generating $n$ distinct $x,y$ shares, data is transmitted from one process to another through IPC pipes ensuring each process gets its own share with no data coupling, granting cross-process security for other non compromised processes.
+
+\subsection{Finite fields implementation}
+For $\mathbb{Z}_p$ to effectively reduce computing errors and prevent floating point errors, $p$ must be a number strictly greater than the secret, $S$, and must be a prime number. Created through cryptographically secure pseudorandom number generators, CSPRNGs, with a range of $[0,p-1]$, $a_j$ mitigates risk of predictability by relying on common entropy sources such as \texttt{/dev/urandom}. Unlike using CSPRNGs, default random generation libraries default to predictable seeds and can cause the attacker to predict all generated coefficients and calculate for the secret $S$, without needing $k$ shares. Additionally, all random coefficients, $a_j$ must be less than $p$, and greater than or equal to 0, $0 \le a_j < p$. During evaluation of $x_i$ shares, the polynomial equation simplifies to $y_i = f(x_i) \pmod p$. Implementing $\mathbb{Z}_p$ is crucial in ensuring boundaries are placed and no algorithm can predict the slope from a given set of points. Crucially, after generating random coefficients through CSPRNGS, zeroization plays an integral role in protecting $S$ by changing all $a_j$ coefficients into zeros, and must be done within a correct timeframe to mitigate risks of asynchronous memory dumps.
+
+\subsection{Interprocess Communication (IPC)}
+Implementation of IPC pipes in the context of independent sharing requires unidirectional flow and exclusive context management to prevent accidental secret extraction which can be accidentally done through \texttt{fork()}. Using \texttt{fork()} increases the risk of secret extraction by allowing worker processes $W_i$, where i is the index of each worker process, to inherit from the orchestrator, resulting in information coupling. The orchestrator sends $k$ shares to each $W_i$ worker process using the \texttt{write end} of the file descriptor, \texttt{FD} where FD is an integer that IPC utilizes for a description of open channels. \texttt{FD[0]} is universally known as the read handler in most Linux/POSIX systems which $W_i$ use to read incoming data from the orchestrator. Whereas \texttt{FD[1]} is the write handler used to send data to other processes, utilized by the orchestrator. In the context of independent sharing, the use of \texttt{fork()} is tenuous. Effectively mitigating accidental worker inheritance from \texttt{fork()} requires the closure of reading channels \texttt{FD[0]} to prevent accidental reading of data from the worker, before individual usage of \texttt{FD[1]}, write handle, of the orchestrator to each individual worker processes $W_i$. Using \texttt{close(FD[0])}, the orchestrator closes each read channel before sending $(x_i,f(x_i))$ shares to $W_i$ workers. In the context of the worker, $W_i$, the worker closes the writing channel on \texttt{FD[1]} using \texttt{close(FD[1])} before the orchestrator sends individual shares $(x_i,f(x_i))$ to prevent accidentally sending information to the worker. Additionally, the worker $W_i$ closes the writing and reading handle of neighboring workers $W_j$ using \texttt{close(FD[1])} and \texttt{close(FD[0])} requiring a \texttt{for} loop for each $W_j$ worker instance. Substantially mitigating the risk of the worker, $W_i$, reading other inherited shares of other workers.
+
+\subsection{Hardened zeroization}
+During zeroization, standard functions to eliminate variables from ram such as \texttt{memset()} or simply setting pointers to \texttt{NULL} may be of lower priority to low level languages that prioritize speed and computational efficiency. After completion of IPC pipe transmission and using \texttt{memset()}, compilers often remove the function entirely. Known as Dead-Store elimination, it often occurs when the compiler acknowledges that the coefficients $a_j$ are never read again during the remainder of the program and instead of calling \texttt{memset()} the compiler ignores the function and leaves variables in ram in an act of prioritizing speed. To mitigate such risks, the proposed solution prioritizes hardened memory wiping, \texttt{explicit\_bzero()}, as a direct substitution for \texttt{memset()}. \texttt{explicit\_bzero()} ensures zeroization regardless of the compiler's speed optimization by halting the compiler's ability to ignore calls to \texttt{explicit\_bzero()}.
+
+\section{Experimental results}
+\subsection{Testing Environment}
+\begin{itemize}
+    \item \textbf{Hardware: } x86\_64 with an 8 core cpu and 16 gb of ram.
+    \item \textbf{Operating system \& kernel: } POSIX compliant linux environment running linux kernel 6.x utilizing system calls: \texttt{fork(2)}, \texttt{sigaction(2)}, \texttt{pipe(2)}.
+    \item \textbf{Compiler requirements: } Programmed in C, and compiled using GCC under 14.x with \texttt{-02} (standard) and \texttt{-03} (aggressive) optimization flags to juxtapose and test Dead-Store elimination behaviour.
+    \item \textbf{System Libraries: } Linked to standard \texttt{glibc} providing \texttt{explicit\_bzero()} for hardened zeroization
+    \item \textbf{Experiment parameters: } Share counts were shared across $n \in \{5,10,25,50,100\}$ with the reconstruction threshold set to $k = \lceil n/2 \rceil$.
+    \item \textbf{Finite field parameters: } Polynomials should be calculated over finite field $\mathbb{Z}_p$ using a 32 bit prime modulus $p=2^{31}-1$.
+    \item \textbf{Size and timing: } Each parameter combination is ran $n=1000$ independent trials iteration. Execution time was recorded via \texttt{CLOCK\_MONOTONIC} to calculate mean latency and standard deviation. 
+\end{itemize} 
+
+\begin{thebibliography}{9}
+
+\bibitem{verizon2026dbir}
+Verizon Enterprise Solutions, 
+\textit{2026 Data Breach Investigations Report}, 2026. 
+[Online]. Available: \url{https://www.verizon.com/business/resources/reports/dbir/}
+
+\end{thebibliography}
+
+
+\end{document}
+
